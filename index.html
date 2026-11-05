@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dictée rapide · Sun Piscines</title>
+<style>
+:root{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:#eff6fb;color:#203e54}
+*{box-sizing:border-box}body{margin:0;padding:20px}main{margin:auto;max-width:560px;border-radius:18px;background:white;box-shadow:0 9px 35px #16416b20;padding:25px}
+h1{font-size:24px;margin:0 0 8px;color:#16456a}p{line-height:1.5;color:#576e80}
+button{border:0;border-radius:11px;padding:13px 16px;font-size:16px;font-weight:700;cursor:pointer}
+.start{background:#0878b9;color:white}.stop{background:#a52a3b;color:white}.muted{background:#e7f2f8;color:#174460}
+.controls{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}#preview{min-height:130px;white-space:pre-wrap;background:#f7fafc;border:1px solid #d6e6ee;padding:13px;border-radius:10px}
+#status{margin:12px 0;font-size:14px;color:#176781}small{color:#60788c}button:disabled{opacity:.4}
+</style></head><body><main>
+<h1>🎤 Dicter mes notes</h1>
+<p>Dictée ponctuelle en français. Parle et tes mots sont transférés directement dans la réunion ouverte sur ton mini-site.</p>
+<div class="controls"><button class="start" id="start">🎤 Démarrer la dictée</button><button class="stop" id="stop" disabled>⏹ Arrêter</button><button class="muted" id="close">Fermer</button></div>
+<p id="status" role="status" aria-live="polite">Clique sur « Démarrer ». Autorise le microphone quand Chrome le demande.</p>
+<h3>Dernier texte reconnu</h3><div id="preview"></div>
+<p><small>Aucun fichier audio n’est enregistré par cette page. Chrome peut traiter la reconnaissance vocale via un service en ligne. Termine la dictée avant de fermer cette fenêtre.</small></p>
+</main>
+<script>
+(function(){
+ const p=new URLSearchParams(location.hash.slice(1));
+ const nonce=p.get('token')||'',origin=p.get('origin')||'';
+ const $=id=>document.getElementById(id),Speech=window.SpeechRecognition||window.webkitSpeechRecognition;
+ let r=null,active=false;
+ const emit=(type,text)=>{
+  if(!window.opener||!nonce||!/^https:\/\//.test(origin))return;
+  window.opener.postMessage({app:'sun-bg-dictee-v48',token:nonce,type,text},origin);
+ };
+ function status(s){$('status').textContent=s;emit('status',s)}
+ if(!window.opener||!nonce||!/^https:\/\//.test(origin)){status('Cette page doit être ouverte depuis le mini-site Sun Piscines.');$('start').disabled=true;return}
+ if(!Speech){status('Ce navigateur ne prend pas en charge la reconnaissance vocale. Ouvre cette page dans Chrome.');$('start').disabled=true;return}
+ function change(v){active=v;$('start').disabled=v;$('stop').disabled=!v}
+ let said=new Set();
+ $('start').onclick=()=>{
+  if(active)return;said=new Set();
+  const s=new Speech();r=s;s.lang='fr-FR';s.interimResults=true;s.continuous=true;
+  s.onstart=()=>{if(r!==s)return;change(true);status('🎙️ Micro actif. Parle normalement.')};
+  s.onresult=e=>{
+    if(r!==s)return;
+    let interim='';const finals=[];
+    for(let i=e.resultIndex;i<e.results.length;i++){
+      const t=(e.results[i][0].transcript||'').trim();
+      if(e.results[i].isFinal){if(!said.has(i)){said.add(i);if(t)finals.push(t)}}
+      else interim+=t+' ';
+    }
+    if(finals.length){const v=finals.join(' ');$('preview').textContent=v;emit('final',v)}
+    else if(interim)$('preview').textContent=interim;
+  };
+  s.onerror=e=>{
+    if(r!==s)return;
+    const msg={
+      'not-allowed':'Accès refusé. Autorise le microphone pour cette page HTTPS dans Chrome.',
+      'service-not-allowed':'Service de dictée bloqué par le navigateur.',
+      'audio-capture':'Aucun microphone détecté.',
+      'no-speech':'Aucune parole détectée. Clique à nouveau sur Démarrer.',
+      'network':'Erreur réseau de reconnaissance vocale.'
+    };
+    status(msg[e.error]||'Micro indisponible ('+e.error+')');change(false);
+  };
+  s.onend=()=>{if(r!==s)return;r=null;change(false);
+    if(!$('status').textContent.includes('refus')&&!$('status').textContent.includes('indisponible'))status('Micro arrêté. Tu peux reprendre avec Démarrer.');};
+  try{s.start();status('Demande d’autorisation du microphone…')}catch(err){r=null;change(false);status('Démarrage impossible : '+err.message)}
+ };
+ $('stop').onclick=()=>{if(r){try{r.stop()}catch(e){}}change(false)};
+ $('close').onclick=()=>{if(r)try{r.stop()}catch(e){};window.close()};
+ window.addEventListener('pagehide',()=>{if(r)try{r.stop()}catch(e){}});
+})();
+</script></body></html>
