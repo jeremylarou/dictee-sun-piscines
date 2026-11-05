@@ -67,4 +67,3 @@ button{border:0;border-radius:11px;padding:13px 16px;font-size:16px;font-weight:
  window.addEventListener('pagehide',()=>{if(r)try{r.stop()}catch(e){}});
 })();
 </script></body></html>
-<!-- Activation du microphone Sun Piscines -->
